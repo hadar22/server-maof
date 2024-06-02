@@ -96,7 +96,16 @@ app.post('/projects/new-project',async(req,res,next)=>{
     }
 
 })
-
+app.post('/register' , async(req, res)=>{
+    const {name, pass} = req.body
+    const salt = await bcrypt.genSalt(10)
+    const passwordHashed = await bcrypt.hash(pass,salt)
+    const sql = "INSERT INTO users (projectNum, username, password) VALUES (?); "
+    db.query(sql, [pass, name, passwordHashed], (err, result)=>{
+        if(err) return res.json({message: "error"})
+        return res.json({status: "success"})
+    })
+})
 // login
 app.post('/projects/login', async(req, res, next)=>{
     console.log("heyy")
