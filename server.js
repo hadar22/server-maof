@@ -50,14 +50,14 @@ app.get("/", (req, res) => {
 // //method override
 // app.use(methodOverride("_method"))
 //save login user into locals
-app.use((req,res,next)=>{
-    if(req.session.userAuth){
-        res.locals.userAuth = req.session.userAuth
-    }else{
-        res.locals.userAuth = null
-    }
-    next()
-})
+// app.use((req,res,next)=>{
+//     if(req.session.userAuth){
+//         res.locals.userAuth = req.session.userAuth
+//     }else{
+//         res.locals.userAuth = null
+//     }
+//     next()
+// })
 
 // new project
 app.post('/projects/new-project',async(req,res,next)=>{
@@ -68,7 +68,7 @@ app.post('/projects/new-project',async(req,res,next)=>{
     const sql = 'INSERT INTO users (username, password, phoneNum, contact, projectNum ) VALUES (?);'
     try{
         //1. check if project exist
-        db.connect()
+        // db.connect()
         db.query("SELECT username FROM users WHERE projectNum=?;",[projectNum],(err,result)=>{
             if(result.length > 0){
                 return res.json({Error: "הפרויקט כבר קיים במערכת"})
@@ -96,62 +96,84 @@ app.post('/projects/new-project',async(req,res,next)=>{
     }
 
 })
-app.post('/register' , async(req, res)=>{
-    const {name, pass} = req.body
-    const salt = await bcrypt.genSalt(10)
-    const passwordHashed = await bcrypt.hash(pass,salt)
-    const sql = "INSERT INTO users (projectNum, username, password) VALUES (?); "
-    db.query(sql, [pass, name, passwordHashed], (err, result)=>{
-        if(err) return res.json({message: "error"})
-        return res.json({status: "success"})
-    })
-})
-// login
+// app.post('/register' , async(req, res)=>{
+//     console.log("jjj")
+//     const {name, password} = req.body
+//     console.log(password)
+//     // const salt = await bcrypt.genSalt(10)
+//     const passwordHashed = await bcrypt.hash(password ,10)
+//     const sql = "INSERT INTO users (projectNum, projectName, password) VALUES (?,?,?); "
+//     db.query(sql, [password, name, passwordHashed], (err, result)=>{
+//         if(err){ 
+//             console.log(err)
+//             return res.json({message: "error"})}
+//         return res.json({status: "success"})
+//     })
+// })
+// login--NEW
 app.post('/projects/login', async(req, res, next)=>{
-    console.log("heyy")
+    // console.log("heyy")
     const {name, password} = req.body
    console.log(req.body)
-    const sql = "SELECT * FROM users WHERE username=?;"
-    db.connect()
+    const sql = "SELECT * FROM users WHERE projectName=?;"
+  
     db.query(sql, [name] ,async (err, data)=>{
-        console.log("heyy1")
+      //  console.log("heyy1")
         if(err){ 
             console.log("error", err)
             return res.json({status:"error",message: err.sqlMessage})
         }
-
-        console.log("pas",password)
-    
         const isGood = await bcrypt.compareSync(password, data[0].password)
     
-        console.log(isGood)
+        // console.log(isGood)
         if(!isGood){
             console.log("not good")
             return res.json({status: "error" ,message: "הסיסמא שגויה"})
           }
-        console.log(data[0].projectNum)
-        req.session.userAuth = data[0].projectNum 
-        return res.json({status: 'success' ,data:{name: name, projectNum: data[0].projectNum}
+          else{
+            return res.json({status: 'success' ,data:{name: name, projectNum: data[0].projectNum}
             })
+          }
+        // console.log(data[0].projectNum)
+        // req.session.userAuth = data[0].projectNum 
             
-            
-        })
-
-    
-        
-    
+        }) 
+})
+//add new project -NEW
+app.post('/manager/add',async (req,res)=>{
+    const {projectName, password, contact, phoneNum, projectNum }= req.body
+    const isAdmin = 0
+    const passwordHashed = await bcrypt.hash(password ,10)
+    const sql = "INSERT INTO users (projectName, password, contact, phoneNum, projectNum, isAdmin) VALUES (?,?,?,?,?,?);"
+    db.query(sql, [projectName, passwordHashed, contact, phoneNum, projectNum, isAdmin], (err, result) => {
+        if(err){
+            console.log(err);
+            return res.json({message: "error"})}
+        else{
+            console.log(projectNum, projectName);
+            const sql2 = "INSERT INTO project_info ( projectNum, projectName) VALUES (?,?);"
+            db.query(sql2, [projectNum, projectName], (err2, result2)=>{
+                if(err2){ 
+                    console.log("שגיאה",err2)
+                    return res.json({message: "error2"})}
+                else{
+                    console.log("res",result2);
+                    return res.json({message: "success"})
+                }
+            })
+        }
+    })
 })
 //get all project to manager page
 app.get('/manager/get-all-projects',(req, res)=>{
-    const sql = 'SELECT * FROM users WHERE projectNum <> 1;'
-    db.connect()
+    const sql = 'SELECT * FROM users WHERE isAdmin <> 1;'
+    
     db.query(sql , (err, result)=>{
         if(err) return res.json({Error: "not working"})
         
         return res.status(200).json({myData: result})
     })
 })
-
 //logout
 app.get('/projects/logout', (req,res, next)=>{
     req.session.destroy()
@@ -161,39 +183,48 @@ app.get('/projects/logout', (req,res, next)=>{
 
 
 //All project data
-app.get('/project/get-all-project-data',(req, res)=>{
-    const username = req.query.username
-    console.log("userGet", username)
-    const sql = "SELECT * FROM project_info WHERE username=?;"
-    db.connect()
-    db.query(sql, [username], (err, result)=>{
-        if(err) return res.json({status:'error', message: err})
-        console.log(result)
-        return res.json({status: 'success', data: result})
+app.get('/project/get-all-project-data',async(req, res)=>{
+    const projectNum = await req.query.projectNum
+    console.log(projectNum)
+    const sql = "SELECT *, DATE_FORMAT(dateSignature, '%Y-%m-%d') AS dateSignature, DATE_FORMAT(endDate, '%Y-%m-%d') AS endDate, DATE_FORMAT(electricCompany, '%Y-%m-%d') AS electricCompany, DATE_FORMAT(standardsInstitute, '%Y-%m-%d') AS standardsInstitute, DATE_FORMAT(receivElevator, '%Y-%m-%d') AS receivElevator FROM project_info WHERE projectNum=?;"
+
+    db.query(sql, [projectNum], (err, result)=>{
+        if(err){
+            console.log(err)
+             return res.json({status:'error', message: err})}
+        else{
+            console.log(result)
+            return res.json({status: 'success', data: result})
+             }
+        
     })
 })
 
 //Update first details
 app.post('/project/update-first-details',(req, res)=>{
-   
-    const values = [req.body.workOffice, req.body.dateSignature, req.body.elevatorType, req.body.endDate, req.body.username]
-    console.log(values)
-    db.connect()
-    const sql = 'UPDATE project_info SET workOffice= ? , dateSignature = ?, elevatorType = ?, endDate = ? WHERE username=?;'
-    db.query(sql, values, (err, result)=>{
+    const projectNum= req.query.projectNum
+    // const values = [req.body.workOffice, req.body.dateSignature, req.body.elevatorType, req.body.endDate]
+    // console.log(values)
+    
+    const sql = 'UPDATE project_info SET workOffice= ? , dateSignature = ?, elevatorType = ?, endDate = ? WHERE projectNum=?;'
+    db.query(sql, [req.body.workOffice, req.body.dateSignature, req.body.elevatorType, req.body.endDate, projectNum], (err, result)=>{
         if(err){
             return res.json({status: 'error', message: err})
         }
+        else{
+            console.log(result)
+            return res.json({status: 'success'})
+        }
         
-        return res.json({status: 'success'})
+        
     })
 })
 
 //add engineer
 app.post('/project/add-engineer',(req,res)=>{
     const values =[req.body.engineer, req.body.username]
-    const sql = 'UPDATE project_info SET engineer=? WHERE username=?;'
-    db.connect()
+    const sql = 'UPDATE project_info SET engineer=? WHERE projectName=?;'
+    
     db.query(sql, values,(err, result)=>{
         if(err) {
             return res.json({status:'error', message:err})
@@ -204,8 +235,7 @@ app.post('/project/add-engineer',(req,res)=>{
 //update that we are in the planning phase
 app.post('/project/planning-phase',(req,res)=>{
     const username=req.body.username
-    const sql = "UPDATE project_info SET planning = '1' WHERE username = ?;"
-    db.connect()
+    const sql = "UPDATE project_info SET planning = '1' WHERE projectName = ?;"
     db.query(sql, [username],(err,result)=>{
         if(err) {
             console.log(err)
@@ -218,8 +248,8 @@ app.post('/project/planning-phase',(req,res)=>{
 //update that we are in the purchase phase
 app.post('/project/purchase-phase',(req,res)=>{
     const username=req.body.username
-    const sql = "UPDATE project_info SET procurement = '1' WHERE username = ?;"
-    db.connect()
+    const sql = "UPDATE project_info SET procurement = '1' WHERE projectName = ?;"
+    
     db.query(sql, [username],(err,result)=>{
         if(err) return res.json({status:'error'})
         return res.json({status:'success'})
@@ -228,18 +258,19 @@ app.post('/project/purchase-phase',(req,res)=>{
 //date to the electricity company
 app.post('/project/date-to-electric-company',(req,res)=>{
     const values = [req.body.electricCompany, req.body.username]
-    const sql = 'UPDATE project_info SET electricCompany =? WHERE username=?;'
-    db.connect()
+    const sql = 'UPDATE project_info SET electricCompany=? WHERE projectName=?;'
+    console.log(values)
     db.query(sql,values, (err,result)=>{
-        if(err) return res.json({status:"error"})
+        if(err) {
+            return res.json({status:"error"})}
         return res.json({status:'success'})
     })
 })
 //date to the standards-institute company
 app.post('/project/date-to-standards-institute',(req,res)=>{
     const values = [req.body.standardsInstitute, req.body.username]
-    const sql = 'UPDATE project_info SET standardsInstitute =? WHERE username=?;'
-    db.connect()
+    const sql = 'UPDATE project_info SET standardsInstitute =? WHERE projectName=?;'
+    
     db.query(sql,values, (err,result)=>{
         if(err) return res.json({status:"error"})
         return res.json({status:'success'})
@@ -248,8 +279,8 @@ app.post('/project/date-to-standards-institute',(req,res)=>{
 //date receive elevator
 app.post('/project/date-receive-elevator',(req,res)=>{
     const values = [req.body.receivElevator, req.body.username]
-    const sql = 'UPDATE project_info SET receivElevator =? WHERE username=?;'
-    db.connect()
+    const sql = 'UPDATE project_info SET receivElevator =? WHERE projectName=?;'
+    
     db.query(sql,values, (err,result)=>{
         if(err) return res.json({status:"error"})
         return res.json({status:'success'})
@@ -259,8 +290,8 @@ app.post('/project/date-receive-elevator',(req,res)=>{
 app.post('/project/upload-work-plan',(req,res)=>{
     const username = req.body.username
     console.log(username)
-    const sql = "UPDATE project_info SET workPlan ='1' WHERE username = ?;"
-    db.connect()
+    const sql = "UPDATE project_info SET workPlan ='1' WHERE projectName = ?;"
+    
     db.query(sql, [username],(err,result)=>{
         if(err) return res.json({status:"error"})
         console.log(result)
@@ -268,13 +299,13 @@ app.post('/project/upload-work-plan',(req,res)=>{
 
     })
 })
-//delete project from users
+//delete project from users - NEW
 app.delete('/manager/delete-project',(req, res)=>{
     const projectNum = req.query.projectNum
     console.log(projectNum)
     const sql = "DELETE FROM users WHERE projectNum = (?); DELETE FROM project_info WHERE projectNum = (?);"
-    db.connect()
-    db.query(sql, [projectNum,projectNum], (err, result)=>{
+    
+    db.query(sql, [projectNum, projectNum], (err, result)=>{
         if(err) return res.json({status: "error"})
         console.log(result)
         return res.json({status: "success"})
