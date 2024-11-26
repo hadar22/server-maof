@@ -114,11 +114,11 @@ app.post('/projects/new-project',async(req,res,next)=>{
 app.post('/projects/login', async(req, res, next)=>{
     // console.log("heyy")
     const {name, password} = req.body
-   console.log(req.body)
+   console.log("body",req.body)
     const sql = "SELECT * FROM users WHERE projectName=?;"
   
     db.query(sql, [name] ,async (err, data)=>{
-      //  console.log("heyy1")
+       console.log("heyy1")
         if(err){ 
             console.log("error", err)
             return res.json({status:"error",message: err.sqlMessage})
