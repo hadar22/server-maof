@@ -131,8 +131,14 @@ app.post('/projects/login', async(req, res, next)=>{
             return res.json({status: "error" ,message: "הסיסמא שגויה"})
           }
           else{
-            return res.json({status: 'success' ,data:{name: name, projectNum: data[0].projectNum}
+            if(name === env.process.MANAGE){
+                return res.json({status: 'success' ,data:{name: name, projectNum: data[0].projectNum, manage:"1"}
             })
+            }else{
+                return res.json({status: 'success' ,data:{name: name, projectNum: data[0].projectNum, manage: "0"}
+            })
+            }
+            
           }
         // console.log(data[0].projectNum)
         // req.session.userAuth = data[0].projectNum 
