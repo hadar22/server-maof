@@ -8,8 +8,7 @@ const session = require('express-session')
 
 const app = express();
 app.use(cors({
-    origin:  ["http://localhost:3000", "https://maofelevators.com"]
-    
+    origin:  ["http://localhost:3000", "https://www.maofelevators.com"]
     
      
 }))
