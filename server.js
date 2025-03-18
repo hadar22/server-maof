@@ -112,6 +112,7 @@ app.post('/projects/new-project',async(req,res,next)=>{
 // })
 // login--NEW
 app.post('/projects/login', async(req, res, next)=>{
+    res.set('Access-Control-Allow-Origin', '*');
     // console.log("heyy")
     const {name, password} = req.body
    console.log("body",req.body)
