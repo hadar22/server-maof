@@ -6,24 +6,26 @@ const bcrypt = require("bcrypt")
 const mysql = require('mysql2/promise');
 const session = require('express-session')
 const jwt = require('jsonwebtoken')
+const nodemailer = require('nodemailer')
 
 const app = express();
+// אפשר כל דומיין (לבדיקות בלבד, לא לפרודקשן)
+//app.use(core())
+
+const allowedOrigins = ['http://localhost:3000', 'https://www.maofelevators.com', 'https://maofelevators.com'];
+// או – בצורה מאובטחת יותר, אפשר רק את הדומיין שלך:
 app.use(cors({
-    origin:  ["http://localhost:3000", "https://www.maofelevators.com"]
-    
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true)
+        } else {
+          callback(new Error('Not allowed by CORS'))
+        }
+      },
+    credentials: true // אם אתה משתמש ב-cookies או authentication headers
      
 }))
-// app.use(session({
-//     secret: 'secretkey',
-//     resave: false,
-//   saveUninitialized: true,
-//   cookie:{
-//     httpOnly:true,
-//     secure:false,
-//     expires: new Date(Date.now()+ 60*60*1000) 
-//   }
-// }));
-//serve static files
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); //pass form data
@@ -35,7 +37,7 @@ const db = mysql.createPool({
     password: process.env.MYSQL_P,
     database: process.env.DB,
     multipleStatements: true,
-    timezone: 'utc',
+    timezone: '+00:00',
     // connectTimeout: 60000
 })
 
@@ -62,7 +64,79 @@ app.get("/", (req, res) => {
 //     }
 //     next()
 // })
+//contact page
+app.post('/api/contact', async (req, res)=>{
+    try{
+        const {fullName, email, phone, city, street, buildingNumber} = req.body
 
+        //
+        if(!fullName || !email || !phone || !city || !street || !buildingNumber){
+            return res.status(400).json({error: "Missing required fields"})
+        }
+        //create transporter
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.GMAIL_USER,
+                pass: process.env.GMAIL_APP_PASSWORD,
+            },
+        })
+        //email content
+        const mailoption = {
+            from: process.env.GMAIL_USER,
+            to: process.env.GMAIL_USER,
+            subject: `פניה חדשה מהאתר - ${fullName}`,
+            html: `
+                <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1a4ba0; border-bottom: 2px solid #1a4ba0; padding-bottom:10px;">
+                        פנייה חדשה מאתר מעוף מעליות
+                    </h2>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                        <tr>
+                             <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; width: 120px;">שם מלא:</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${fullName}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">אימייל:</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                                <a href="mailto:${email}">${email}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">טלפון:</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                                <a href="tel:${phone}">${phone}</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">עיר:</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${city}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">רחוב:</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${street}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">מספר בניין:</td>
+                            <td style="padding: 10px;">${buildingNumber}</td>
+                        </tr>
+                    </table>
+                     <p style="margin-top: 30px; padding: 15px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px; color: #666;">
+            הודעה זו נשלחה באופן אוטומטי מטופס יצירת הקשר באתר מעוף מעליות.
+          </p>
+
+                </div>`,
+        }
+        //send email
+        await transporter.sendMail(mailoption)
+
+        return res.json({success: true})
+
+    }catch(error){
+        console.error("Error sending email:", error)
+        return res.status(500).json({error: "Failed to send email"})
+    }
+})
 // new project
 app.post('/projects/new-project',async(req,res,next)=>{
     const {username, password, phoneNum, contact, projectNum } = req.body
@@ -180,10 +254,33 @@ const authenticate = (req, res, next)=>{
         next()
     })
 }
-const isAdmin = (req, res, next)=>{
-    if(req.project.role !== 'admin') return res.sendStatus(403)
+// const isAdmin = (req, res, next)=>{
+//     if(req.project.role !== 'admin') return res.sendStatus(403)
+//     next()
+// }
+const isAdmin = (req, res, next) =>{
+    if(!req.project){
+        return res.status(401).json({
+            status: "error",
+            message: "Authentication error: missing project data"
+        })
+    }
+    if(!req.project.role){
+        return res.status(401).json({
+            status: "error",
+            message:"Authentication error: no role found"
+        })
+    }
+    if(req.project.role !== "admin"){
+        return res.status(403).json({
+            status: "error",
+            message: "Access denied: admin only"
+        })
+    }
     next()
 }
+
+
 app.get('/admin-data', authenticate, isAdmin, (req, res)=>{
     res.json({status:'success', message: 'Welcome Admin!'})
 })
@@ -195,6 +292,7 @@ app.get('/project-data', authenticate, (req, res)=>{
 app.post('/manager/add', authenticate, isAdmin,async (req,res)=>{
     const {projectName, password, contact, phoneNum, projectNum, role }= req.body
     console.log(projectNum)
+    console.log(role)
     try{
         const [existing] = await db.execute(
             'SELECT * FROM users WHERE projectNum = ?', [projectNum]
@@ -203,6 +301,7 @@ app.post('/manager/add', authenticate, isAdmin,async (req,res)=>{
             console.log("hii")
             return res.status(400).json({message:'פרויקט כבר קיים'})
         }
+
         //Password encryption
         const passwordHashed = await bcrypt.hash(password ,10)
         //Inserting data into the USERS table
@@ -242,11 +341,20 @@ app.post('/manager/add', authenticate, isAdmin,async (req,res)=>{
 })
 //get all project to manager page
 app.get('/manager/get-all-projects', authenticate, isAdmin, async (req, res)=>{
-    const [rows] = await db.execute("SELECT * FROM users WHERE role != 'admin';") 
-    if(rows.length===0) return res.status(501).json({message: 'אין פרויקטים'})
-        //const projects = rows[0]
-        console.log(rows)
-        return res.json({status: 'success', myData: rows})
+    try{
+        const [rows] = await db.execute("SELECT * FROM users WHERE role != 'admin'") 
+        const safeRows = Array.isArray(rows) ? rows :[]
+        return res.json({
+            status: 'success', myData: safeRows
+        })
+    }catch (err) {
+        console.error("DB error:", err)
+        return res.status(500).json({
+            status: 'error',
+            message: 'Database error',
+            myData: []
+        })
+    }
     
     
 })
@@ -364,9 +472,13 @@ app.post('/project/upload-work-plan',async (req,res)=>{
 //delete project from users - NEW
 app.delete('/manager/delete-project', async (req, res)=>{
     const projectNum = req.query.projectNum
-    console.log(projectNum)
-    const [ans] = db.execute("DELETE FROM users WHERE projectNum = (?); DELETE FROM project_info WHERE projectNum = (?);",[projectNum, projectNum]) 
-    if(ans.affectedRows>0){
+    console.log("SERVER GOT projectNum =", req.query.projectNum)
+
+    const [ans1] = await db.execute("DELETE FROM users WHERE projectNum = ?",[projectNum])
+    const [ans2] = await db.execute("DELETE FROM project_info WHERE projectNum = ?",[projectNum])
+    console.log(ans2)
+    console.log(ans1)
+    if(ans1.affectedRows>0 & ans2.affectedRows>0){
         return res.json({status: 'success'})
     }else{
         return res.status(400).json({status:'error'})
