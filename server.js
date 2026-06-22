@@ -99,9 +99,12 @@ app.post('/api/contact', async (req, res)=>{
     }
 
         //create transporter
+        // משתמשים בפורט 465 (SSL) במקום 587, כי Render חוסם את פורט 587
         console.log("[server] Creating mail transporter...");
         const transporter = nodemailer.createTransport({
-            service: "gmail",
+            host: "smtp.gmail.com",
+            port: 465,
+            secure: true, // true עבור פורט 465
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD,
