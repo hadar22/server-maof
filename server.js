@@ -11,7 +11,14 @@ const nodemailer = require('nodemailer')
 const app = express();
 // אפשר כל דומיין (לבדיקות בלבד, לא לפרודקשן)
 //app.use(core())
-
+// הדפסת מצב משתני הסביבה בעת עליית השרת (בלי לחשוף את הסיסמה עצמה)
+console.log("[server] Starting up...");
+console.log("[server] NODE_ENV:", process.env.NODE_ENV || "(not set)");
+console.log("[server] GMAIL_USER:", process.env.GMAIL_USER || "(MISSING!)");
+console.log(
+  "[server] GMAIL_APP_PASSWORD:",
+  process.env.GMAIL_APP_PASSWORD ? "set ✓" : "(MISSING!)"
+);
 const allowedOrigins = ['http://localhost:3000', 'https://www.maofelevators.com', 'https://maofelevators.com'];
 // או – בצורה מאובטחת יותר, אפשר רק את הדומיין שלך:
 app.use(cors({
@@ -19,6 +26,7 @@ app.use(cors({
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true)
         } else {
+          console.warn("[server] CORS blocked request from origin:", origin);
           callback(new Error('Not allowed by CORS'))
         }
       },
@@ -66,14 +74,32 @@ app.get("/", (req, res) => {
 // })
 //contact page
 app.post('/api/contact', async (req, res)=>{
+    console.log("[server] /api/contact called from origin:", req.headers.origin);
     try{
         const {fullName, email, phone, city, street, buildingNumber} = req.body
+         console.log("[server] Received form data for:", fullName, email);
 
+        
         //
         if(!fullName || !email || !phone || !city || !street || !buildingNumber){
+            console.warn("[server] Validation failed - missing fields:", req.body);
             return res.status(400).json({error: "Missing required fields"})
         }
+            // בדיקה שמשתני הסביבה קיימים לפני ניסיון השליחה
+    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+      console.error(
+        "[server] Missing Gmail credentials! GMAIL_USER:",
+        !!process.env.GMAIL_USER,
+        "GMAIL_APP_PASSWORD:",
+        !!process.env.GMAIL_APP_PASSWORD
+      );
+      return res
+        .status(500)
+        .json({ error: "Server email is not configured" });
+    }
+
         //create transporter
+        console.log("[server] Creating mail transporter...");
         const transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
@@ -81,6 +107,10 @@ app.post('/api/contact', async (req, res)=>{
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
         })
+         // אימות החיבור ל-Gmail לפני שליחת המייל
+    console.log("[server] Verifying SMTP connection...");
+    await transporter.verify();
+    console.log("[server] SMTP connection verified ✓");
         //email content
         const mailoption = {
             from: process.env.GMAIL_USER,
@@ -128,12 +158,15 @@ app.post('/api/contact', async (req, res)=>{
                 </div>`,
         }
         //send email
-        await transporter.sendMail(mailoption)
+        console.log("[server] Sending email...");
+    const info = await transporter.sendMail(mailOptions);
+    console.log("[server] Email sent successfully ✓ messageId:", info.messageId);
 
         return res.json({success: true})
 
     }catch(error){
-        console.error("Error sending email:", error)
+        console.error("[server] Error sending email:", error.message);
+    console.error("[server] Full error:", error);
         return res.status(500).json({error: "Failed to send email"})
     }
 })
