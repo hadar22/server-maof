@@ -112,7 +112,7 @@ app.post('/api/contact', async (req, res)=>{
             connectionTimeout: 10000, // 10 שניות - כשל מהיר במקום להמתין 2 דקות
             greetingTimeout: 10000,
             // הכרחת IPv4 - Render לא תומך ב-IPv6 ביוצא (גרם ל-ENETUNREACH)
-            //family: 4,
+            family: 4,
         })
          // אימות החיבור ל-Gmail לפני שליחת המייל
     console.log("[server] Verifying SMTP connection...");
