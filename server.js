@@ -119,7 +119,7 @@ app.post('/api/contact', async (req, res)=>{
     //await transporter.verify();
     console.log("[server] SMTP connection verified ✓");
         //email content
-        const mailOption = {
+        const mailOptions = {
             from: process.env.GMAIL_USER,
             to: process.env.GMAIL_USER,
             subject: `פניה חדשה מהאתר - ${fullName}`,
@@ -166,8 +166,8 @@ app.post('/api/contact', async (req, res)=>{
         }
         //send email
         console.log("[server] Sending email...");
-    const info = await transporter.sendMail(mailOptions);
-    console.log("[server] Email sent successfully ✓ messageId:", info.messageId);
+        const info = await transporter.sendMail(mailOptions);
+        console.log("[server] Email sent successfully ✓ messageId:", info.messageId);
 
         return res.json({success: true})
 
