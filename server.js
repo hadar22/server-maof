@@ -116,7 +116,7 @@ app.post('/api/contact', async (req, res)=>{
         })
          // אימות החיבור ל-Gmail לפני שליחת המייל
     console.log("[server] Verifying SMTP connection...");
-    await transporter.verify();
+    //await transporter.verify();
     console.log("[server] SMTP connection verified ✓");
         //email content
         const mailoption = {
@@ -172,8 +172,11 @@ app.post('/api/contact', async (req, res)=>{
         return res.json({success: true})
 
     }catch(error){
+        console.error(error);
+        console.error(error.code);
+        console.error(error.response);
         console.error("[server] Error sending email:", error.message);
-    console.error("[server] Full error:", error);
+        console.error("[server] Full error:", error);
         return res.status(500).json({error: "Failed to send email"})
     }
 })
