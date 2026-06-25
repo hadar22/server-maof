@@ -102,22 +102,25 @@ app.post('/api/contact', async (req, res)=>{
         // משתמשים בפורט 465 (SSL) במקום 587, כי Render חוסם את פורט 587
         console.log("[server] Creating mail transporter...");
         const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 465,
-            secure: true, // true עבור פורט 465
+            // host: "smtp.gmail.com",
+            // port: 465,
+            // secure: true, // true עבור פורט 465
+            service: "gmail",
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD,
             },
+            logger: true,
+            debug: true,
             connectionTimeout: 10000, // 10 שניות - כשל מהיר במקום להמתין 2 דקות
             greetingTimeout: 10000,
             // הכרחת IPv4 - Render לא תומך ב-IPv6 ביוצא (גרם ל-ENETUNREACH)
             family: 4,
         })
          // אימות החיבור ל-Gmail לפני שליחת המייל
-    console.log("[server] Verifying SMTP connection...");
+    //console.log("[server] Verifying SMTP connection...");
     //await transporter.verify();
-    console.log("[server] SMTP connection verified ✓");
+    //console.log("[server] SMTP connection verified ✓");
         //email content
         const mailOptions = {
             from: process.env.GMAIL_USER,
@@ -166,6 +169,8 @@ app.post('/api/contact', async (req, res)=>{
         }
         //send email
         console.log("[server] Sending email...");
+        console.log(process.env.GMAIL_USER);
+        console.log(process.env.GMAIL_APP_PASSWORD?.length);
         const info = await transporter.sendMail(mailOptions);
         console.log("[server] Email sent successfully ✓ messageId:", info.messageId);
 
