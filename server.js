@@ -6,7 +6,7 @@ const bcrypt = require("bcrypt")
 const mysql = require('mysql2/promise');
 const session = require('express-session')
 const jwt = require('jsonwebtoken')
-const nodemailer = require('nodemailer')
+const Resend = require('resend')
 
 const app = express();
 // אפשר כל דומיין (לבדיקות בלבד, לא לפרודקשן)
@@ -86,46 +86,77 @@ app.post('/api/contact', async (req, res)=>{
             return res.status(400).json({error: "Missing required fields"})
         }
             // בדיקה שמשתני הסביבה קיימים לפני ניסיון השליחה
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-      console.error(
-        "[server] Missing Gmail credentials! GMAIL_USER:",
-        !!process.env.GMAIL_USER,
-        "GMAIL_APP_PASSWORD:",
-        !!process.env.GMAIL_APP_PASSWORD
-      );
-      return res
-        .status(500)
-        .json({ error: "Server email is not configured" });
-    }
+        if (!process.env.RESEND_API_KEY) {
+        console.error("[server] Missing RESEND_API_KEY");
+
+        return res.status(500).json({
+            error: "Server email is not configured",
+        });
+        }
 
         //create transporter
         // משתמשים בפורט 465 (SSL) במקום 587, כי Render חוסם את פורט 587
         console.log("[server] Creating mail transporter...");
-        const transporter = nodemailer.createTransport({
-            // host: "smtp.gmail.com",
-            // port: 465,
-            // secure: true, // true עבור פורט 465
-            service: "gmail",
-            auth: {
-                user: process.env.GMAIL_USER,
-                pass: process.env.GMAIL_APP_PASSWORD,
-            },
-            logger: true,
-            debug: true,
-            connectionTimeout: 10000, // 10 שניות - כשל מהיר במקום להמתין 2 דקות
-            greetingTimeout: 10000,
-            // הכרחת IPv4 - Render לא תומך ב-IPv6 ביוצא (גרם ל-ENETUNREACH)
-            family: 4,
-        })
+        
+        const resend = new Resend(process.env.RESEND_API_KEY)
          // אימות החיבור ל-Gmail לפני שליחת המייל
     //console.log("[server] Verifying SMTP connection...");
     //await transporter.verify();
     //console.log("[server] SMTP connection verified ✓");
         //email content
-        const mailOptions = {
-            from: process.env.GMAIL_USER,
-            to: process.env.GMAIL_USER,
-            subject: `פניה חדשה מהאתר - ${fullName}`,
+        // const mailOptions = {
+        //     from: process.env.GMAIL_USER,
+        //     to: process.env.GMAIL_USER,
+        //     subject: `פניה חדשה מהאתר - ${fullName}`,
+        //     html: `
+        //         <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        //             <h2 style="color: #1a4ba0; border-bottom: 2px solid #1a4ba0; padding-bottom:10px;">
+        //                 פנייה חדשה מאתר מעוף מעליות
+        //             </h2>
+        //             <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        //                 <tr>
+        //                      <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; width: 120px;">שם מלא:</td>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee;">${fullName}</td>
+        //                 </tr>
+        //                 <tr>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">אימייל:</td>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee;">
+        //                         <a href="mailto:${email}">${email}</a>
+        //                     </td>
+        //                 </tr>
+        //                 <tr>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">טלפון:</td>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee;">
+        //                         <a href="tel:${phone}">${phone}</a>
+        //                     </td>
+        //                 </tr>
+        //                 <tr>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">עיר:</td>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee;">${city}</td>
+        //                 </tr>
+        //                 <tr>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">רחוב:</td>
+        //                     <td style="padding: 10px; border-bottom: 1px solid #eee;">${street}</td>
+        //                 </tr>
+        //                 <tr>
+        //                     <td style="padding: 10px; font-weight: bold;">מספר בניין:</td>
+        //                     <td style="padding: 10px;">${buildingNumber}</td>
+        //                 </tr>
+        //             </table>
+        //              <p style="margin-top: 30px; padding: 15px; background-color: #f5f5f5; border-radius: 5px; font-size: 14px; color: #666;">
+        //     הודעה זו נשלחה באופן אוטומטי מטופס יצירת הקשר באתר מעוף מעליות.
+        //   </p>
+
+        //         </div>`,
+        // }
+        //send email
+        console.log("[server] Sending email...");
+        
+        //const info = await transporter.sendMail(mailOptions);
+        await resend.emails.send({
+            from:  "onboarding@resend.dev",
+            to: "maof.elevators1@gmail.com",
+            subject: `פנייה חדשה מהאתר - ${fullName}`,
             html: `
                 <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #1a4ba0; border-bottom: 2px solid #1a4ba0; padding-bottom:10px;">
@@ -166,13 +197,8 @@ app.post('/api/contact', async (req, res)=>{
           </p>
 
                 </div>`,
-        }
-        //send email
-        console.log("[server] Sending email...");
-        console.log(process.env.GMAIL_USER);
-        console.log(process.env.GMAIL_APP_PASSWORD?.length);
-        const info = await transporter.sendMail(mailOptions);
-        console.log("[server] Email sent successfully ✓ messageId:", info.messageId);
+        })
+        console.log("[server] Email sent successfully ✓ messageId:", resend);
 
         return res.json({success: true})
 
