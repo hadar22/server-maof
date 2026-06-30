@@ -6,11 +6,12 @@ const bcrypt = require("bcrypt")
 const mysql = require('mysql2/promise');
 const session = require('express-session')
 const jwt = require('jsonwebtoken')
-const resendModule = require("resend");
+const { Resend } = require("resend");
+// const resendModule = require("resend");
 
-console.log("Resend module:", resendModule);
+// console.log("Resend module:", resendModule);
 
-const { Resend } = resendModule;
+// const { Resend } = resendModule;
 const resend = new Resend(process.env.RESEND_API_KEY)
 const app = express();
 // אפשר כל דומיין (לבדיקות בלבד, לא לפרודקשן)
@@ -109,9 +110,9 @@ app.post('/api/contact', async (req, res)=>{
         console.log("[server] Sending email...");
         
      
-        await resend.emails.send({
-            from:  "onboarding@resend.dev",
-            to: "maof.elevators1@gmail.com",
+        const result = await resend.emails.send({
+            from:  "no-reply@maofelevators.com",
+            to: "maofelevators1@gmail.com",
             subject: `פנייה חדשה מהאתר - ${fullName}`,
             html: `
                 <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -154,7 +155,13 @@ app.post('/api/contact', async (req, res)=>{
 
                 </div>`,
         })
-        console.log("[server] Email sent successfully ✓ messageId:", resend);
+        if(result.error){
+            console.error(result.error)
+            return res.status(500).json({
+                error: result.error.message,
+            })
+        }
+        console.log("[server] Email sent successfully ✓ messageId:", result);
 
         return res.json({success: true})
 
